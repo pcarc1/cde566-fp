@@ -168,7 +168,7 @@ res_msm <- cmest(data = data,
                  inference = "bootstrap", 
                  nboot = 10000)
 
-save(res_msm, "data/result-msm.RData")
+# save(res_msm, "data/result-msm.RData")
 summary(res_msm)
 ```
 
