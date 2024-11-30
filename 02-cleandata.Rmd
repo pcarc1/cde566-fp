@@ -72,7 +72,7 @@ young <- young_raw |>
                          .default = NA)) |> 
   
   # Defining outcome
-  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03, heartprob_95, heartprob_97, heartprob_99, heartprob_01, heartprob_03), ~ . == 1 & !is.na(.)))) |> 
+  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03, heartprob_99, heartprob_01, heartprob_03), ~ . == 1 & !is.na(.)))) |> 
   
   # Excluding no data on mediator or outcome
   filter(!is.na(mi) & !is.na(hbp)) |> 
