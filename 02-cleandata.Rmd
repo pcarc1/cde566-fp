@@ -32,6 +32,8 @@ young <- young_raw |>
   filter((hbp_ever_91 != 1 | is.na(hbp_ever_91)) &
            (hbp_curr_95 != 1 | is.na(hbp_curr_95)) &
            (hbp_dx_95 != 1 | is.na(hbp_dx_95)) &
+           (heartprob_95 != 1 | is.na(heartprob_95)) &
+           (heartprob_97 != 1 | is.na(heartprob_97)) &
            (mi_ever_95 != 1 | is.na(mi_ever_95)) &
            (mi_ever_97 != 1 | is.na(mi_ever_97)) &
            (mi_year_95 > 1997 | is.na(mi_year_95)) &
@@ -100,74 +102,6 @@ table(young$mi, young$oc_use, dnn = c("MI", "OC"))
 # write_rds(young, "data/young-clean.rds")
 ```
 
-```{r}
-young2 <- young_raw |> 
-  # Excluding HBP in 1995 or before and MI in or before 1997
-  filter((hbp_ever_91 != 1 | is.na(hbp_ever_91)) &
-           (hbp_curr_95 != 1 | is.na(hbp_curr_95)) &
-           (hbp_dx_95 != 1 | is.na(hbp_dx_95)) &
-           (mi_ever_95 != 1 | is.na(mi_ever_95)) &
-           (mi_ever_97 != 1 | is.na(mi_ever_97)) &
-           (mi_year_95 > 1997 | is.na(mi_year_95)) &
-           (mi_year_97 > 1997 | is.na(mi_year_97)) &
-           (mi_year_99 > 1997 | is.na(mi_year_99)) &
-           (mi_year_01 > 1997 | is.na(mi_year_01)) &
-           (mi_year_03 > 1997 | is.na(mi_year_03))) |> 
-  
-  # Excluding OC start after 1997 and no data on OC use
-  mutate(year_birth = 1968 - age_68,
-         oc_yearstart = oc_agestart_summary_03 + year_birth) |> 
-  filter(oc_yearstart < 1997 | is.na(oc_yearstart)) |> 
-  filter(!is.na(oc_ever_95) | !is.na(oc_agestart_summary_03) | !is.na(oc_agestop_summary_03)) |> 
-  
-  # Defining exposure
-  mutate(oc_use = if_else(oc_ever_95 == 1 | !is.na(oc_agestart_summary_03) | !is.na(oc_agestop_summary_03), 1, 0)) |> 
-  
-  # Defining mediator
-  rowwise() |> 
-  mutate(year_mi = if (all(is.na(c(mi_year_95, mi_year_97, mi_year_99, mi_year_01, mi_year_03)))) {NA}
-         else {min(c(mi_year_95, mi_year_97, mi_year_99, mi_year_01, mi_year_03), na.rm = TRUE)}) |> 
-  ungroup() |> 
-  mutate(year_hbp = case_when(hbp_curr_03 == 1 ~ 2003,
-                              hbp_dx_03 == 1 ~ 2003,
-                              hbp_curr_01 == 1 ~ 2001,
-                              hbp_dx_01 == 1 ~ 2001,
-                              hbp_curr_99 == 1 ~ 1999,
-                              hbp_dx_95 == 1 ~ 1999,
-                              hbp_curr_97 == 1 ~ 1997,
-                              hbp_dx_97 == 1 ~ 1997,
-                              .default = NA),
-         hbp = case_when(year_hbp < year_mi ~ 1,
-                         year_hbp > year_mi ~ 0,
-                         hbp_dx_97 == 1 ~ 1,
-                         hbp_curr_97 == 1 ~ 1,
-                         hbp_dx_97 == 0 ~ 0,
-                         hbp_curr_97 == 0 ~ 0,
-                         .default = NA)) |> 
-  
-  # Defining outcome
-  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03), ~ . == 1 & !is.na(.)))) |> 
-  
-  # Excluding no data on mediator or outcome
-  filter(!is.na(mi) & !is.na(hbp)) |> 
-  
-  # Defining confounders
-  mutate(age = 1995-year_birth,
-         weight = if_else(weight_lb_91 < 100, NA, weight_lb_91),
-         weight_kg = weight*0.45,
-         height1_cm = height_ft_91*30.48,
-         height2_cm = height_in_91*2.54,
-         height_cm = height1_cm + height2_cm,
-         bmi = weight_kg/((height_cm/100)^2),
-         smoking = if_else(smoking_ever_91 == 1 | smoking_curr_93 == 1 | smoking_curr_95 == 1, 1, 0),
-         hbp_med = if_else(hbp_med_95 == 1 | hbp_med_97 == 1 | hbp_med_99 == 1 | hbp_med_01 == 1 | hbp_med_03 == 1, 1, 0),
-         hbp_med = if_else(is.na(hbp_med) & !is.na(hbp), 0, hbp)) |> 
-  
-  # Selecting final variables
-  select(id, year_birth, age, smoking, income = income_family_03, children = children_roster_03, bmi, oc_use, oc_yearstart = oc_agestart_summary_03, oc_yearstop = oc_agestop_summary_03, hbp, hbp_year = year_hbp, hbp_med, mi, mi_year = year_mi) |> 
-  mutate(cohort = "young")
-```
-
 ## Format mature women dataset
 
 ```{r}
@@ -177,6 +111,8 @@ mature <- mature_raw |>
            (hbp_dx_95 != 1 | is.na(hbp_dx_95)) &
            (mi_ever_95 != 1 | is.na(mi_ever_95)) &
            (mi_ever_97 != 1 | is.na(mi_ever_97)) &
+           (heartprob_95 != 1 | is.na(heartprob_95)) &
+           (heartprob_97 != 1 | is.na(heartprob_97)) &
            (mi_year_95 > 1997 | is.na(mi_year_95)) &
            (mi_year_97 > 1997 | is.na(mi_year_97)) &
            (mi_year_99 > 1997 | is.na(mi_year_99)) &
@@ -215,7 +151,7 @@ mature <- mature_raw |>
                          .default = NA)) |> 
   
   # Defining outcome
-  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03, heartprob_95, heartprob_97, heartprob_99, heartprob_01, heartprob_03), ~ . == 1 & !is.na(.)))) |> 
+  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03, heartprob_99, heartprob_01, heartprob_03), ~ . == 1 & !is.na(.)))) |> 
   
   # Excluding no data on mediator or outcome
   filter(!is.na(mi) & !is.na(hbp)) |> 
@@ -243,83 +179,10 @@ table(mature$mi, mature$oc_use, dnn = c("MI", "OC"))
 # write_rds(mature, "data/mature-clean.rds")
 ```
 
-```{r}
-mature2 <- mature_raw |> 
-  # Excluding HBP in 1995 or before and MI in or before 1997
-  filter((hbp_curr_95 != 1 | is.na(hbp_curr_95)) &
-           (hbp_dx_95 != 1 | is.na(hbp_dx_95)) &
-           (mi_ever_95 != 1 | is.na(mi_ever_95)) &
-           (mi_ever_97 != 1 | is.na(mi_ever_97)) &
-           (mi_year_95 > 1997 | is.na(mi_year_95)) &
-           (mi_year_97 > 1997 | is.na(mi_year_97)) &
-           (mi_year_99 > 1997 | is.na(mi_year_99)) &
-           (mi_year_01 > 1997 | is.na(mi_year_01)) &
-           (mi_year_03 > 1997 | is.na(mi_year_03))) |> 
-  
-  # Excluding OC start after 1997 and no data on OC use
-  mutate(year_birth = 1967 - age_67,
-         oc_yearstart = oc_agestart_summary_03 + year_birth) |> 
-  filter(oc_yearstart < 1997 | is.na(oc_yearstart)) |> 
-  filter(!is.na(oc_ever_95) | !is.na(oc_agestart_summary_03) | !is.na(oc_agestop_summary_03)) |> 
-  
-  # Defining exposure
-  mutate(oc_use = if_else(oc_ever_95 == 1 | !is.na(oc_agestart_summary_03) | !is.na(oc_agestop_summary_03), 1, 0)) |> 
-  
-  # Defining mediator
-  rowwise() |> 
-  mutate(year_mi = if (all(is.na(c(mi_year_95, mi_year_97, mi_year_99, mi_year_01, mi_year_03)))) {NA}
-         else {min(c(mi_year_95, mi_year_97, mi_year_99, mi_year_01, mi_year_03), na.rm = TRUE)}) |> 
-  ungroup() |> 
-  mutate(year_hbp = case_when(hbp_curr_03 == 1 ~ 2003,
-                              hbp_dx_03 == 1 ~ 2003,
-                              hbp_curr_01 == 1 ~ 2001,
-                              hbp_dx_01 == 1 ~ 2001,
-                              hbp_curr_99 == 1 ~ 1999,
-                              hbp_dx_95 == 1 ~ 1999,
-                              hbp_curr_97 == 1 ~ 1997,
-                              hbp_dx_97 == 1 ~ 1997,
-                              .default = NA),
-         hbp = case_when(year_hbp < year_mi ~ 1,
-                         year_hbp > year_mi ~ 0,
-                         hbp_dx_97 == 1 ~ 1,
-                         hbp_curr_97 == 1 ~ 1,
-                         hbp_dx_97 == 0 ~ 0,
-                         hbp_curr_97 == 0 ~ 0,
-                         .default = NA)) |> 
-  
-  # Defining outcome
-  mutate(mi = as.integer(if_any(c(mi_ever_99, mi_ever_01, mi_ever_03), ~ . == 1 & !is.na(.)))) |> 
-  
-  # Excluding no data on mediator or outcome
-  filter(!is.na(mi) & !is.na(hbp)) |> 
-  
-  # Defining confounders
-  mutate(age = 1995-year_birth,
-         weight = if_else(weight_lb_92 < 100, NA, weight_lb_92),
-         weight_kg = weight*0.45,
-         height1_cm = height_ft_92*30.48,
-         height2_cm = height_in_92*2.54,
-         height_cm = height1_cm + height2_cm,
-         bmi = weight_kg/((height_cm/100)^2),
-         smoking = if_else(smoking_curr_95 == 1, 1, 0),
-         hbp_med = if_else(hbp_med_95 == 1 | hbp_med_97 == 1 | hbp_med_99 == 1 | hbp_med_01 == 1 | hbp_med_03 == 1, 1, 0),
-         hbp_med = if_else(is.na(hbp_med) & !is.na(hbp), 0, hbp)) |> 
-  
-  # Selecting final variables
-  select(id, year_birth, age, smoking, income = income_family_03, children = children_roster_03, bmi, oc_use, oc_yearstart = oc_agestart_summary_03, oc_yearstop = oc_agestop_summary_03, hbp, hbp_year = year_hbp, hbp_med, mi, mi_year = year_mi) |> 
-  mutate(cohort = "mature")
-```
-
 ## Join datasets
 
 ```{r}
 full_db <- rbind(young, mature)
 
 # write_rds(full_db, "data/joined-db-clean.rds")
-```
-
-```{r}
-full_db2 <- rbind(young2, mature2)
-
-# write_rds(full_db2, "data/joined-db2-clean.rds")
 ```

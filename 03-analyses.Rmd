@@ -33,7 +33,7 @@ data <- data_raw |>
          hbp = factor(hbp),
          hbp_med = factor(hbp_med),
          cohort = factor(cohort)) |> 
-  select(mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med) |> 
+  select(age, mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med, children, income, bmi) |> 
   na.omit()
 
 data_withnas <- data_raw |> 
@@ -56,89 +56,109 @@ data_withnas <- data_raw |>
          cohort = factor(cohort),
          length_ocuse = oc_yearstop - oc_yearstart) |> 
   select(mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med, length_ocuse)
-
-length_ocuse <- data_raw |> 
-  mutate(parity = cut(children, 
-                      breaks = c(0, 1, 3, 100), 
-                      labels = c("0-1", "2-3", "3+"), 
-                      include.lowest = TRUE),
-         inc_cat = cut(income, 
-                       breaks = quantile(data_raw$income, c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE), 
-                       labels = c("Q1", "Q2", "Q3", "Q4"),
-                       include.lowest = TRUE),
-         bmi_cat = cut(bmi,
-                       breaks = c(0, 25, 30, 1000),
-                       labels = c("Normal or underweight", "Overweight", "Obesity")),
-         smoking = factor(smoking),
-         mi = factor(mi),
-         oc_use = factor(oc_use),
-         hbp = factor(hbp),
-         hbp_med = factor(hbp_med),
-         cohort = factor(cohort)) |> 
-  select(id, cohort, mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med) |> 
-  na.omit() |> 
-  left_join(data_raw |> select(id, cohort, oc_yearstart, oc_yearstop), by = c("id", "cohort")) |> 
-  mutate(length_ocuse = oc_yearstop - oc_yearstart) |> 
-  select(-id, -cohort, -oc_yearstart, -oc_yearstop)
 ```
 
-```{r}
-data2_raw <- read_rds("data/joined-db2-clean.rds")
-
-data2 <- data2_raw |> 
-  mutate(parity = cut(children, 
-                      breaks = c(0, 1, 3, 100), 
-                      labels = c("0-1", "2-3", "3+"), 
-                      include.lowest = TRUE),
-         inc_cat = cut(income, 
-                       breaks = quantile(data_raw$income, c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE), 
-                       labels = c("Q1", "Q2", "Q3", "Q4"),
-                       include.lowest = TRUE),
-         bmi_cat = cut(bmi,
-                       breaks = c(0, 25, 30, 1000),
-                       labels = c("Normal or underweight", "Overweight", "Obesity")),
-         smoking = factor(smoking),
-         mi = factor(mi),
-         oc_use = factor(oc_use),
-         hbp = factor(hbp),
-         hbp_med = factor(hbp_med),
-         cohort = factor(cohort)) |> 
-  select(mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med) |> 
-  na.omit()
-```
-
-## Descriptive table
+## Table 1: Baseline characteristics
 
 ```{r}
 ## Only complete observations
-tbl_summary(data = data, by = mi) |> 
-  add_p()
-
-## Only complete observations, with length of OC use
-tbl_summary(data = length_ocuse, by = mi) |> 
-  add_p()
+tbl_summary(data = data |> 
+              mutate(oc_use = factor(oc_use, levels = c(1, 0), labels = c("OC use", "No OC use"))), by = oc_use) |> 
+  add_p() |> 
+  add_overall()
 
 ## All observations
-tbl_summary(data = data_withnas, by = mi) |> 
-  add_p()
+tbl_summary(data = data_withnas |> 
+              mutate(oc_use = factor(oc_use, levels = c(1, 0), labels = c("OC use", "No OC use"))), by = oc_use) |> 
+  add_p() |> 
+  add_overall()
 ```
 
-```{r}
-tbl_summary(data = data2, by = mi) |> 
-  add_p()
+## Table 2: Conditional and marginal models
 
-xtabs(~mi + hbp + cohort, data = data2)
-```
-
-## Outcome regression
+### Crude outcome regression
 
 ```{r}
-mod1 <- glm(mi ~ oc_use + cohort + smoking + inc_cat + parity, family = binomial, data = data)
+mod1 <- glm(mi ~ oc_use, family = binomial, data = data)
 
 summary(mod1)
+
+exp(cbind(OR = coef(mod1), confint(mod1)))
 ```
 
-## Causal mediation analysis
+### Adjusted outcome regression
+
+```{r}
+mod2 <- glm(mi ~ oc_use + cohort + smoking + inc_cat + parity, family = binomial, data = data)
+
+summary(mod2)
+
+exp(cbind(OR = coef(mod2), confint(mod2)))
+```
+
+### IPTW
+
+```{r}
+mod1PS <- glm(oc_use ~ cohort + smoking + inc_cat + parity + bmi_cat, family = binomial, data = data)
+
+summary(mod1PS)
+
+data$ps <- predict(mod1PS, type = "response")
+
+# Create the numerator of IPTW for stabilized weight
+fitpn_oc <- glm(oc_use ~ 1, family = binomial, data = data)
+
+summary(fitpn_oc)
+
+data$pn_os <- predict(fitpn_oc, type = "response")
+
+# Calculate the weights for the exposed/treated and the unexposed/untreated
+data <- data |> 
+  mutate(sw_t = ifelse(oc_use == 1,
+                       yes = pn_os / ps,
+                       no = (1 - pn_os)/(1 - ps)))
+
+summary(data$sw_t)
+
+fitsw <- glm(mi ~ oc_use, family = binomial, data = data, weights = sw_t)
+
+summary(fitsw)
+
+cbind(beta = coef(fitsw), confint(fitsw))
+
+# Stabilized IPW for mediator
+# the denominator
+fitipwm <- glm(hbp ~ oc_use + bmi_cat + cohort + inc_cat + parity + smoking, family = binomial, data = data)
+
+summary(fitipwm)
+
+data$p_m <- predict(fitipwm, data, type = "response")
+
+# the numerator
+fitipwmn <- glm(hbp ~ 1, family = binomial, data = data)
+
+summary(fitipwmn)
+
+data$p_mn <- predict(fitipwmn, data, type = "response")
+
+# stabilized weights for mediator
+data$sw_m <- ifelse(data$hbp == 1, 
+                    yes = data$p_mn / data$p_m,
+                    no = (1 - data$p_mn) / (1 - data$p_m))
+
+summary(data$sw_m)
+
+# Combine IPWs
+data$sw_e_m<- data$sw_t*data$sw_m   
+
+fitswm <- glm(mi ~ oc_use + oc_use*hbp, family=binomial, data = data, weights = sw_e_m)
+
+summary(fitswm)
+
+cbind(beta = exp(coef(fitswm)), exp(confint(fitswm)))
+```
+
+## Table 3: Causal mediation analysis
 
 ```{r}
 set.seed(11112)
@@ -166,15 +186,49 @@ res_msm <- cmest(data = data,
                  mval = list(0), 
                  estimation = "imputation", 
                  inference = "bootstrap", 
-                 nboot = 10000)
+                 nboot = 1000)
 
-# save(res_msm, file = "data/result-msm.RData")
 summary(res_msm)
 ```
 
-## IPMW
+
+## Compare distribution of covariates with and without NAs
 
 ```{r}
-summary(glm(mi ~ hbp, data = data_withnas, family = binomial))
-summary(glm(mi ~ hbp, data = data, family = binomial))
+data_withnas |> 
+  ggplot(aes(x = hbp)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~oc_use)
+
+data |> 
+  ggplot(aes(x = hbp)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~oc_use)
+
+data_withnas |> 
+  ggplot(aes(x = hbp)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~mi)
+
+data |> 
+  ggplot(aes(x = hbp)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~mi)
+
+data_withnas |> 
+  ggplot(aes(x = oc_use)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~mi)
+
+data |> 
+  ggplot(aes(x = oc_use)) +
+  geom_histogram(stat = "count") +
+  facet_wrap(~mi)
+```
+
+```{r}
+tbl_summary(data = data2, by = mi) |> 
+  add_p()
+
+xtabs(~mi + hbp + cohort, data = data2)
 ```
