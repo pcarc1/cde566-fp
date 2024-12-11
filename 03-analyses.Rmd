@@ -99,7 +99,7 @@ exp(cbind(OR = coef(mod2), confint(mod2)))
 ### IPTW
 
 ```{r}
-mod1PS <- glm(oc_use ~ cohort + smoking + inc_cat + parity + bmi_cat, family = binomial, data = data)
+mod1PS <- glm(oc_use ~ cohort + smoking + inc_cat + parity, family = binomial, data = data)
 
 summary(mod1PS)
 
@@ -120,42 +120,12 @@ data <- data |>
 
 summary(data$sw_t)
 
+# Fit model with weights
 fitsw <- glm(mi ~ oc_use, family = binomial, data = data, weights = sw_t)
 
 summary(fitsw)
 
-cbind(beta = coef(fitsw), confint(fitsw))
-
-# Stabilized IPW for mediator
-# the denominator
-fitipwm <- glm(hbp ~ oc_use + bmi_cat + cohort + inc_cat + parity + smoking, family = binomial, data = data)
-
-summary(fitipwm)
-
-data$p_m <- predict(fitipwm, data, type = "response")
-
-# the numerator
-fitipwmn <- glm(hbp ~ 1, family = binomial, data = data)
-
-summary(fitipwmn)
-
-data$p_mn <- predict(fitipwmn, data, type = "response")
-
-# stabilized weights for mediator
-data$sw_m <- ifelse(data$hbp == 1, 
-                    yes = data$p_mn / data$p_m,
-                    no = (1 - data$p_mn) / (1 - data$p_m))
-
-summary(data$sw_m)
-
-# Combine IPWs
-data$sw_e_m<- data$sw_t*data$sw_m   
-
-fitswm <- glm(mi ~ oc_use + oc_use*hbp, family=binomial, data = data, weights = sw_e_m)
-
-summary(fitswm)
-
-cbind(beta = exp(coef(fitswm)), exp(confint(fitswm)))
+cbind(beta = exp(coef(fitsw)), exp(confint(fitsw)))
 ```
 
 ## Table 3: Causal mediation analysis
