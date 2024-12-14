@@ -139,14 +139,14 @@ res_msm <- cmest(data = data,
                  outcome = "mi", 
                  exposure = "oc_use",
                  mediator = "hbp", 
-                 basec = c("cohort", "smoking", "inc_cat", "parity", "bmi_cat", "hbp_med"), 
+                 basec = c("cohort", "smoking", "inc_cat", "children", "bmi_cat", "hbp_med"), 
                  EMint = TRUE,
                  
-                 ereg =  glm(oc_use ~ cohort + smoking + inc_cat + parity, family = binomial, data = data), # Exposure regression for weighting (IPW for exposure)
+                 ereg =  glm(oc_use ~ cohort + smoking + inc_cat + children, family = binomial, data = data), # Exposure regression for weighting (IPW for exposure)
                  
                  wmnomreg = list(glm(hbp ~ 1, family = binomial, data = data)), # IPW for mediator (numerator)
                  
-                 wmdenomreg = list(glm(hbp ~ oc_use + cohort + smoking + inc_cat + parity + bmi_cat, family = binomial, data = data)), # IPW for mediator (denominator)
+                 wmdenomreg = list(glm(hbp ~ oc_use + cohort + smoking + inc_cat + children + bmi_cat, family = binomial, data = data)), # IPW for mediator (denominator)
                  
                  yreg = glm(mi ~ oc_use + hbp + oc_use*hbp, family = binomial, data = data),   # Outcome regression for CDE
                  
@@ -161,3 +161,17 @@ res_msm <- cmest(data = data,
 
 summary(res_msm)
 ```
+
+## HBP and MI
+
+```{r}
+m1 <- glm(mi ~ hbp, family = binomial, data = data)
+m2 <- glm(mi ~ hbp, family = binomial, data = data_withnas)
+
+summary(m1)
+summary(m2)
+
+exp(cbind(OR = coef(m1), confint(m1)))
+exp(cbind(OR = coef(m2), confint(m2)))
+```
+
