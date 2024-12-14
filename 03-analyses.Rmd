@@ -54,7 +54,8 @@ data_withnas <- data_raw |>
          hbp = factor(hbp),
          hbp_med = factor(hbp_med),
          cohort = factor(cohort),
-         length_ocuse = oc_yearstop - oc_yearstart) |> 
+         length_ocuse = oc_yearstop - oc_yearstart,
+         length_ocuse = if_else(length_ocuse < 0, oc_yearstart-oc_yearstop, length_ocuse)) |> 
   select(mi, oc_use, hbp, cohort, smoking, inc_cat, parity, bmi_cat, hbp_med, length_ocuse)
 ```
 
@@ -159,46 +160,4 @@ res_msm <- cmest(data = data,
                  nboot = 1000)
 
 summary(res_msm)
-```
-
-
-## Compare distribution of covariates with and without NAs
-
-```{r}
-data_withnas |> 
-  ggplot(aes(x = hbp)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~oc_use)
-
-data |> 
-  ggplot(aes(x = hbp)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~oc_use)
-
-data_withnas |> 
-  ggplot(aes(x = hbp)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~mi)
-
-data |> 
-  ggplot(aes(x = hbp)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~mi)
-
-data_withnas |> 
-  ggplot(aes(x = oc_use)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~mi)
-
-data |> 
-  ggplot(aes(x = oc_use)) +
-  geom_histogram(stat = "count") +
-  facet_wrap(~mi)
-```
-
-```{r}
-tbl_summary(data = data2, by = mi) |> 
-  add_p()
-
-xtabs(~mi + hbp + cohort, data = data2)
 ```
